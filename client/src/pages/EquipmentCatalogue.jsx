@@ -1,23 +1,53 @@
 
-import { useState } from 'react';
-import { EQUIPMENT } from '../data/equipmentData.js';
+import { useState, useEffect } from 'react';
 import RentalRequestModal from '../components/equipment/RentalRequestModal.jsx';
 import { useRentalRequests } from '../context/useRentalRequests.js';
 
 export default function EquipmentCatalogue() {
+  const [equipment, setEquipment] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
   const [selectedEquipment, setSelectedEquipment] = useState(null);
 
-  // Access the shared rental request system.
   const { requests, addRequest } = useRentalRequests();
+
+  useEffect(() => {
+    fetch('http://localhost:8080/api/equipment')
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Failed to load equipment');
+        }
+        return response.json();
+      })
+      .then(data => {
+        const formattedData = data.map(item => ({
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          description: 'Laboratory equipment available for your projects.',
+          price: item.pricePerDay,
+          quantity: item.availableQuantity,
+          available: item.availableQuantity > 0
+        }));
+
+        setEquipment(formattedData);
+      })
+      .catch(err => {
+        console.error(err);
+        setError('Unable to connect to LabLink backend.');
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   const categories = [
     'All',
-    ...new Set(EQUIPMENT.map(item => item.category))
+    ...new Set(equipment.map(item => item.category))
   ];
 
-  const filteredEquipment = EQUIPMENT.filter(item => {
+  const filteredEquipment = equipment.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase());
     const matchesCategory = category === 'All' || item.category === category;
 
@@ -50,47 +80,55 @@ export default function EquipmentCatalogue() {
         className="equipment-search"
       />
 
-      <div className="equipment-filters">
-        {categories.map(item => (
-          <button
-            key={item}
-            onClick={() => setCategory(item)}
-            className={category === item ? 'active' : ''}
-          >
-            {item}
-          </button>
-        ))}
-      </div>
+      {loading && <p>Loading equipment...</p>}
 
-      <div className="equipment-grid">
-        {filteredEquipment.map(item => (
-          <div className="equipment-card" key={item.id}>
-            <span className="equipment-card__category">
-              {item.category}
-            </span>
+      {error && <p>{error}</p>}
 
-            <h2>{item.name}</h2>
-            <p>{item.description}</p>
-            <p>₹{item.price} / day</p>
-
-            <p className={item.available ? 'available' : 'unavailable'}>
-              {item.available
-                ? `Available (${item.quantity} units)`
-                : 'Currently unavailable'}
-            </p>
-
-            <button
-              disabled={!item.available}
-              onClick={() => setSelectedEquipment(item)}
-            >
-              {item.available ? 'Request Equipment' : 'Unavailable'}
-            </button>
+      {!loading && !error && (
+        <>
+          <div className="equipment-filters">
+            {categories.map(item => (
+              <button
+                key={item}
+                onClick={() => setCategory(item)}
+                className={category === item ? 'active' : ''}
+              >
+                {item}
+              </button>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {filteredEquipment.length === 0 && (
-        <p>No equipment found. Try another search.</p>
+          <div className="equipment-grid">
+            {filteredEquipment.map(item => (
+              <div className="equipment-card" key={item.id}>
+                <span className="equipment-card__category">
+                  {item.category}
+                </span>
+
+                <h2>{item.name}</h2>
+                <p>{item.description}</p>
+                <p>₹{item.price} / day</p>
+
+                <p className={item.available ? 'available' : 'unavailable'}>
+                  {item.available
+                    ? `Available (${item.quantity} units)`
+                    : 'Currently unavailable'}
+                </p>
+
+                <button
+                  disabled={!item.available}
+                  onClick={() => setSelectedEquipment(item)}
+                >
+                  {item.available ? 'Request Equipment' : 'Unavailable'}
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {filteredEquipment.length === 0 && (
+            <p>No equipment found. Try another search.</p>
+          )}
+        </>
       )}
 
       {selectedEquipment && (
